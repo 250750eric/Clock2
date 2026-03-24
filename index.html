@@ -17,7 +17,25 @@
         #top-info-area { font-size: 4vh; margin-bottom: 1vh; text-align: center; cursor: pointer; z-index: 10; }
         #guide-tip { font-size: 1.8vh; color: #888; margin-bottom: 1vh; opacity: 0; transition: opacity 1s; }
         
-        #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; }
+        #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; cursor: pointer; user-select: none; }
+
+        /* 點擊時間區域的波紋反饋動畫 */
+        @keyframes clockPulse {
+            0%   { opacity: 1; transform: scale(1); }
+            40%  { opacity: 0.6; transform: scale(1.03); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        #clock-container.speaking { animation: clockPulse 0.4s ease-out; }
+
+        /* 浮現提示文字 */
+        #speak-toast {
+            position: fixed; bottom: 18vh; left: 50%; transform: translateX(-50%);
+            background: rgba(0,229,255,0.15); border: 1px solid rgba(0,229,255,0.4);
+            color: #00e5ff; font-size: 2vh; padding: 0.6vh 2.5vw; border-radius: 999px;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s;
+            white-space: nowrap; z-index: 100;
+        }
+        #speak-toast.show { opacity: 1; }
         .time-num { font-size: 38vh; transition: color 0.5s; }
         
         #colon-box { width: 12vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -69,7 +87,7 @@
         </div>
         <div id="guide-tip">💡 點擊日期區域可切換配色</div>
 
-        <div id="clock-container">
+        <div id="clock-container" onclick="speakTime(event)">
             <div class="time-num" id="hh">00</div>
             <div id="colon-box">
                 <div id="ampm-indicator"><div class="dot"></div></div>
@@ -77,6 +95,7 @@
             </div>
             <div class="time-num" id="mm">00</div>
         </div>
+        <div id="speak-toast">🔊 語音報時中...</div>
 
         <div id="weather-row">
             <div id="city">定位中...</div>
@@ -242,6 +261,38 @@
             s.style.color = voiceEnabled ? "#ff9800" : "#888";
             speak(voiceEnabled ? "報時開啟" : "報時關閉", true);
         }
+
+        // ── 新功能：點擊時間區域立即語音報時 ────────────────────────────────
+        let toastTimer = null;
+
+        function speakTime(e) {
+            e.stopPropagation();
+            const now = new Date();
+            let hh = now.getHours(), mm = now.getMinutes();
+            const period = hh < 12 ? "上午" : (hh === 12 ? "中午" : "下午");
+            const sh = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
+            const mmText = mm === 0 ? "整" : `${mm}分`;
+            speak(`現在時間，${period}${sh}點${mmText}`, true);  // force=true，即使報時關閉也會唸
+
+            // 手機震動：短震 80ms + 間隔 40ms + 短震 60ms
+            if (navigator.vibrate) navigator.vibrate([80, 40, 60]);
+
+            // 播放波紋動畫
+            const clock = document.getElementById('clock-container');
+            clock.classList.remove('speaking');
+            void clock.offsetWidth;            // 強制 reflow 讓動畫重置
+            clock.classList.add('speaking');
+
+            // 顯示 Toast 提示，2 秒後自動淡出
+            const toast = document.getElementById('speak-toast');
+            toast.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+                clock.classList.remove('speaking');
+            }, 2000);
+        }
+        // ──────────────────────────────────────────────────────────────────────
 
         function tick() {
             const now = new Date();

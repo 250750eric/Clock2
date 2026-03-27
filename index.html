@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Elite 4.3 - Schedule Master</title>
+    <title>GPS Clock Elite 4.4 - Memory Edition</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; touch-action: manipulation; }
@@ -55,7 +55,6 @@
         #format-toggle { left: 5vw; }
         #voice-toggle { right: 5vw; }
 
-        /* 新增：時段設定面板 */
         #schedule-panel {
             position: absolute; bottom: 16vh; right: 5vw; width: 220px;
             background: rgba(20, 20, 20, 0.95); border: 1px solid #00ff41;
@@ -84,9 +83,9 @@
 <body onclick="unlockAudio()">
 
     <div id="overlay">
-        <div style="font-size: 28px; font-weight: bold; margin-bottom: 15px;">GPS Clock 4.3</div>
-        <div style="font-size: 16px; color: #00e5ff;">點擊啟動自定報時時段功能</div>
-        <div style="font-size: 14px; color: #666; margin-top: 20px;">(支援滑桿調整報時範圍)</div>
+        <div style="font-size: 28px; font-weight: bold; margin-bottom: 15px;">GPS Clock 4.4</div>
+        <div style="font-size: 16px; color: #00e5ff;">點擊啟動 (具備設定記憶功能)</div>
+        <div style="font-size: 14px; color: #666; margin-top: 20px;">自動保存您的報時時段與偏好</div>
     </div>
 
     <div id="main-wrapper">
@@ -123,7 +122,7 @@
             <div class="range-label"><span>結束:</span><span id="end-val">22:00</span></div>
             <input type="range" id="end-hour" min="0" max="23" value="22" oninput="updateScheduleDisplay()">
         </div>
-        <div style="font-size: 12px; color: #888; text-align: center; margin-top: 5px;">(設定後自動生效)</div>
+        <div style="font-size: 12px; color: #888; text-align: center; margin-top: 5px;">(調整後將自動儲存記憶)</div>
     </div>
 
     <div id="format-toggle" class="side-btn" onclick="toggleFormat(event)">
@@ -137,13 +136,26 @@
     </div>
 
     <script>
-        let lastHour = -1, lastMinute = -1, voiceMode = 1, use24Hour = true, colorIdx = 0;
-        let startH = 8, endH = 22; // 預設自定時段
+        // --- 初始化變數 (從記憶讀取) ---
+        let lastHour = -1, lastMinute = -1, colorIdx = 0;
         const colors = ['#ffffff', '#ff9800', '#00e5ff', '#00ff41', '#d500f9'];
         const synth = window.speechSynthesis;
 
+        // 讀取 localStorage 設定
+        let voiceMode = parseInt(localStorage.getItem('gps_voiceMode')) || 1; 
+        let startH = parseInt(localStorage.getItem('gps_startH')) || 8;
+        let endH = parseInt(localStorage.getItem('gps_endH')) || 22;
+        let use24Hour = (localStorage.getItem('gps_use24H') !== 'false'); 
+
         let lastDate = -1;
         const weeks = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+        function saveSettings() {
+            localStorage.setItem('gps_voiceMode', voiceMode);
+            localStorage.setItem('gps_startH', startH);
+            localStorage.setItem('gps_endH', endH);
+            localStorage.setItem('gps_use24H', use24Hour);
+        }
 
         function getLunarText(d) {
             try {
@@ -222,7 +234,6 @@
                 const tip = document.getElementById('guide-tip');
                 if(tip) { tip.style.opacity = '1'; setTimeout(() => tip.style.opacity = '0', 5000); }
             }
-            // 點擊空白處關閉面板
             document.getElementById('schedule-panel').style.display = 'none';
         }
 
@@ -240,7 +251,6 @@
             if (voiceMode === 1) return true;
             if (voiceMode === 2) {
                 const hr = new Date().getHours();
-                // 處理跨夜邏輯 (例如 22點到 06點)
                 if (startH < endH) return hr >= startH && hr < endH;
                 else return hr >= startH || hr < endH;
             }
@@ -257,6 +267,7 @@
         function toggleFormat(e) {
             e.stopPropagation();
             use24Hour = !use24Hour;
+            saveSettings();
             document.getElementById('f-status').innerText = use24Hour ? "24H制" : "12H制";
             speak("切換" + (use24Hour ? "24小時" : "12小時"), true);
             tick();
@@ -265,6 +276,8 @@
         function toggleVoice(e) {
             e.stopPropagation();
             voiceMode = (voiceMode + 1) % 3;
+            saveSettings();
+            
             const s = document.getElementById('v-status');
             const sub = document.getElementById('v-sub');
             const panel = document.getElementById('schedule-panel');
@@ -277,23 +290,22 @@
             } else if (voiceMode === 2) { 
                 s.innerText = "定時"; s.style.color = "#00ff41";
                 updateScheduleDisplay();
-                speak("進入定時模式，請調整時段", true);
+                speak("進入定時模式", true);
             } else { 
                 s.innerText = "關閉"; s.style.color = "#888";
                 sub.innerText = "靜音"; speak("報時關閉", true);
             }
         }
 
-        // 更新滑桿數值與顯示
         function updateScheduleDisplay() {
             startH = parseInt(document.getElementById('start-hour').value);
             endH = parseInt(document.getElementById('end-hour').value);
+            saveSettings(); 
             document.getElementById('start-val').innerText = String(startH).padStart(2, '0') + ":00";
             document.getElementById('end-val').innerText = String(endH).padStart(2, '0') + ":00";
             document.getElementById('v-sub').innerText = `${startH}-${endH}時`;
         }
 
-        let toastTimer = null;
         function speakTime(e) {
             e.stopPropagation();
             const now = new Date();
@@ -309,11 +321,7 @@
             clock.classList.add('speaking');
             const toast = document.getElementById('speak-toast');
             toast.classList.add('show');
-            clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => {
-                toast.classList.remove('show');
-                clock.classList.remove('speaking');
-            }, 2000);
+            setTimeout(() => { toast.classList.remove('show'); clock.classList.remove('speaking'); }, 2000);
         }
 
         function tick() {
@@ -338,6 +346,26 @@
                 autoLocate();
             }
         }
+
+        // --- 初始化 UI 狀態 ---
+        window.onload = function() {
+            document.getElementById('f-status').innerText = use24Hour ? "24H制" : "12H制";
+            document.getElementById('start-hour').value = startH;
+            document.getElementById('end-hour').value = endH;
+            
+            const s = document.getElementById('v-status');
+            const sub = document.getElementById('v-sub');
+            if (voiceMode === 1) {
+                s.innerText = "全天"; s.style.color = "#ff9800"; sub.innerText = "報時";
+            } else if (voiceMode === 2) {
+                s.innerText = "定時"; s.style.color = "#00ff41"; sub.innerText = `${startH}-${endH}時`;
+                document.getElementById('start-val').innerText = String(startH).padStart(2, '0') + ":00";
+                document.getElementById('end-val').innerText = String(endH).padStart(2, '0') + ":00";
+            } else {
+                s.innerText = "關閉"; s.style.color = "#888"; sub.innerText = "靜音";
+            }
+        };
+
         setInterval(tick, 1000); tick();
     </script>
 </body>

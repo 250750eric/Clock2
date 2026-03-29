@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Elite 5.0 - AGI Edition</title>
+    <title>GPS Clock Elite 5.1 - Final Edition</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; --agi-color: #ff4500; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; touch-action: manipulation; }
@@ -41,7 +42,6 @@
         .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
         #seconds { font-size: 8vh; opacity: 0.6; margin-top: 1vh; font-family: monospace; }
         
-        /* GPS與氣象區 - 增加觸發感 */
         #weather-area { cursor: pointer; text-align: center; transition: opacity 0.2s; }
         #weather-area:active { opacity: 0.6; }
         #weather-row { display: flex; gap: 15px; font-size: 4.5vh; margin-top: 2vh; font-weight: bold; }
@@ -49,7 +49,6 @@
         #city { color: var(--accent-color); }
         #weather-detail { color: var(--weather-color); }
 
-        /* AGI 倒數區域 */
         #agi-container { margin-top: 3vh; font-size: 2vh; color: #444; font-family: monospace; letter-spacing: 1px; }
         #agi-timer { color: var(--agi-color); font-weight: bold; opacity: 0.8; }
 
@@ -91,9 +90,9 @@
 <body onclick="unlockAudio()">
 
     <div id="overlay">
-        <div style="font-size: 28px; font-weight: bold; margin-bottom: 15px;">GPS Clock 5.0</div>
-        <div style="font-size: 16px; color: #00e5ff;">點擊啟動 (系統環境監測模式)</div>
-        <div style="font-size: 14px; color: #666; margin-top: 20px;">點擊 GPS 區域聽取環境報告</div>
+        <div style="font-size: 28px; font-weight: bold; margin-bottom: 15px;">GPS Clock 5.1</div>
+        <div style="font-size: 16px; color: #00e5ff;">點擊啟動 (全環境監測系統)</div>
+        <div style="font-size: 14px; color: #666; margin-top: 20px;">點擊 GPS 區域聽取完整報告</div>
     </div>
 
     <div id="main-wrapper">
@@ -101,7 +100,7 @@
             <div id="date-str"></div>
             <div id="lunar-str"></div>
         </div>
-        <div id="guide-tip">💡 點擊日期切換顏色 | 點擊下方聽取報告</div>
+        <div id="guide-tip">💡 點擊日期切換配色 | 點擊 GPS 區聽取報告</div>
 
         <div id="clock-container" onclick="speakTime(event)">
             <div class="time-num" id="hh">00</div>
@@ -116,9 +115,9 @@
         <div id="weather-area" onclick="speakFullEnvironment(event)">
             <div id="weather-row">
                 <div id="city">定位中...</div>
-                <div id="weather-detail">數據更新中...</div>
+                <div id="weather-detail">數據載入中...</div>
             </div>
-            <div id="aqi-row">空氣品質加載中...</div>
+            <div id="aqi-row">空氣品質檢測中...</div>
         </div>
 
         <div id="agi-container">
@@ -160,7 +159,6 @@
         let lastDate = -1;
         const weeks = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 
-        // 全域存儲天氣數據供播報使用
         let currentWeatherData = { city: "定位中", temp: "", humid: "", desc: "", aqi: "", aqiDesc: "" };
 
         function saveSettings() {
@@ -205,12 +203,10 @@
                     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`).then(r => r.json()),
                     fetch(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=demo`).then(r => r.json())
                 ]);
-                
                 if (geoRes.status === 'fulfilled') {
                     currentWeatherData.city = `${geoRes.value.city || ""}${geoRes.value.locality || ""}` || "台中市";
                     document.getElementById('city').innerText = currentWeatherData.city;
                 }
-                
                 if (weatherRes.status === 'fulfilled') {
                     const w = weatherRes.value.current;
                     const map = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
@@ -219,7 +215,6 @@
                     currentWeatherData.humid = w.relative_humidity_2m;
                     document.getElementById('weather-detail').innerText = `${currentWeatherData.desc} ${currentWeatherData.temp}°C / 濕度 ${currentWeatherData.humid}%`;
                 }
-                
                 if (aqiRes.status === 'fulfilled' && aqiRes.value.status === "ok") {
                     const v = aqiRes.value.data.aqi;
                     currentWeatherData.aqi = v;
@@ -228,7 +223,7 @@
                     el.style.color = v > 100 ? "#ff9800" : (v > 50 ? "#ffeb3b" : "#00ff41");
                     el.innerText = `AQI 空氣質量: ${v} (${currentWeatherData.aqiDesc})`;
                 }
-            } catch (e) { console.log("Weather error", e); }
+            } catch (e) { console.log("Weather sync failed"); }
         }
 
         function unlockAudio() {
@@ -247,22 +242,19 @@
             synth.speak(u);
         }
 
-        // --- 點擊GPS區的專屬長播報 ---
+        // --- GPS 區域長播報 (太平區實測可用) ---
         function speakFullEnvironment(e) {
             e.stopPropagation();
             const now = new Date();
-            let hh = now.getHours();
-            let mm = now.getMinutes();
+            let hh = now.getHours(), mm = now.getMinutes();
             const period = hh < 12 ? "上午" : (hh === 12 ? "中午" : "下午");
             const sh = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
             
-            // 腳本建構：現在時間 幾點幾分，台中北區 天氣多雲 氣溫26度 濕度67趴 空氣80普通
             const timePart = `現在時間${period}${sh}點${mm === 0 ? '整' : mm + '分'}`;
             const envPart = `${currentWeatherData.city}，天氣${currentWeatherData.desc}，氣溫${currentWeatherData.temp}度，濕度${currentWeatherData.humid}趴，空氣${currentWeatherData.aqi}${currentWeatherData.aqiDesc}`;
             
             speak(`${timePart}。目前${envPart}。`, true);
 
-            // 視覺回饋
             const toast = document.getElementById('speak-toast');
             toast.innerText = "🔊 讀取環境報告中...";
             toast.classList.add('show');
@@ -292,56 +284,41 @@
             setTimeout(() => { toast.classList.remove('show'); clock.classList.remove('speaking'); }, 2000);
         }
 
-        function updateAGI() {
-            const target = new Date("2029-12-07T00:00:00").getTime();
-            const now = new Date().getTime();
-            const diff = target - now;
-            if (diff <= 0) {
-                document.getElementById('agi-timer').innerText = "LIMIT REACHED";
-                return;
-            }
-            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            document.getElementById('agi-timer').innerText = `${d} 天 ${h} 小時`;
+        function toggleFormat(e) {
+            e.stopPropagation();
+            use24Hour = !use24Hour;
+            saveSettings();
+            document.getElementById('f-status').innerText = use24Hour ? "24H制" : "12H制";
+            // 恢復詳細播報
+            speak("切換" + (use24Hour ? "24小時制" : "12小時制"), true);
+            tick();
         }
 
-        function tick() {
-            const now = new Date();
-            let hh = now.getHours(), mm = now.getMinutes(), ss = now.getSeconds();
+        function toggleVoice(e) {
+            e.stopPropagation();
+            voiceMode = (voiceMode + 1) % 3;
+            saveSettings();
+            updateVoiceUI();
             
-            const ind = document.getElementById('ampm-indicator');
-            if (use24Hour) { ind.innerHTML = '<div class="dot"></div>'; } 
-            else { ind.innerText = hh >= 12 ? "下午" : "上午"; ind.style.fontSize = "2.5vh"; }
-            
-            document.getElementById('hh').innerText = String(use24Hour ? hh : (hh % 12 || 12)).padStart(2, '0');
-            document.getElementById('mm').innerText = String(mm).padStart(2, '0');
-            document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
-            
-            updateDateDisplay(now);
-            updateAGI();
-
-            if (mm === 0 && ss === 0 && hh !== lastHour) {
-                let p = hh < 12 ? "上午" : (hh === 12 ? "中午" : "下午");
-                let sh = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
-                speak(`現在時間，${p}${sh}點整`);
-                lastHour = hh;
-                autoLocate();
+            // 恢復詳細模式播報
+            if (voiceMode === 1) { 
+                speak("報時全天開啟", true);
+            } else if (voiceMode === 2) { 
+                speak(`進入定時模式，時段為 ${startH} 點至 ${endH} 點`, true);
+            } else { 
+                speak("報時功能已關閉", true);
             }
         }
 
-        // 保留您原本的切換與設定邏輯...
-        function changeColor(e) { e.stopPropagation(); colorIdx = (colorIdx + 1) % colors.length; document.documentElement.style.setProperty('--main-color', colors[colorIdx]); speak("切換顏色", true); }
-        function toggleFormat(e) { e.stopPropagation(); use24Hour = !use24Hour; saveSettings(); document.getElementById('f-status').innerText = use24Hour ? "24H制" : "12H制"; speak("切換進制", true); tick(); }
-        function toggleVoice(e) { e.stopPropagation(); voiceMode = (voiceMode + 1) % 3; saveSettings(); updateVoiceUI(); }
         function updateVoiceUI() {
-            const s = document.getElementById('v-status');
-            const sub = document.getElementById('v-sub');
+            const s = document.getElementById('v-status'), sub = document.getElementById('v-sub');
             const panel = document.getElementById('schedule-panel');
             panel.style.display = (voiceMode === 2) ? 'block' : 'none';
             if (voiceMode === 1) { s.innerText = "全天"; s.style.color = "#ff9800"; sub.innerText = "報時"; }
             else if (voiceMode === 2) { s.innerText = "定時"; s.style.color = "#00ff41"; sub.innerText = `${startH}-${endH}時`; }
             else { s.innerText = "關閉"; s.style.color = "#888"; sub.innerText = "靜音"; }
         }
+
         function updateScheduleDisplay() {
             startH = parseInt(document.getElementById('start-hour').value);
             endH = parseInt(document.getElementById('end-hour').value);
@@ -351,7 +328,41 @@
             document.getElementById('v-sub').innerText = `${startH}-${endH}時`;
         }
 
-        window.onload = () => { updateVoiceUI(); tick(); setInterval(tick, 1000); };
+        function updateAGI() {
+            const target = new Date("2029-12-07T00:00:00").getTime();
+            const now = new Date().getTime();
+            const diff = target - now;
+            const d = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+            const h = Math.max(0, Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
+            document.getElementById('agi-timer').innerText = (diff <= 0) ? "LIMIT REACHED" : `${d} 天 ${h} 小時`;
+        }
+
+        function changeColor(e) { e.stopPropagation(); colorIdx = (colorIdx + 1) % colors.length; document.documentElement.style.setProperty('--main-color', colors[colorIdx]); speak("切換配色", true); }
+
+        function tick() {
+            const now = new Date();
+            let hh = now.getHours(), mm = now.getMinutes(), ss = now.getSeconds();
+            const ind = document.getElementById('ampm-indicator');
+            if (use24Hour) { ind.innerHTML = '<div class="dot"></div>'; } 
+            else { ind.innerText = hh >= 12 ? "下午" : "上午"; ind.style.fontSize = "2.5vh"; }
+            document.getElementById('hh').innerText = String(use24Hour ? hh : (hh % 12 || 12)).padStart(2, '0');
+            document.getElementById('mm').innerText = String(mm).padStart(2, '0');
+            document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
+            updateDateDisplay(now);
+            updateAGI();
+            if (mm === 0 && ss === 0 && hh !== lastHour) {
+                let p = hh < 12 ? "上午" : (hh === 12 ? "中午" : "下午"), sh = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
+                speak(`現在時間，${p}${sh}點整`);
+                lastHour = hh; autoLocate();
+            }
+        }
+
+        window.onload = () => { 
+            updateVoiceUI(); 
+            document.getElementById('start-hour').value = startH;
+            document.getElementById('end-hour').value = endH;
+            tick(); setInterval(tick, 1000); 
+        };
     </script>
 </body>
 </html>
